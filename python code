@@ -1,0 +1,69 @@
+"""
+#Created on Monday Apr 6 2020
+#author: Al Yazdani
+"""
+import numpy as np
+#import scipy.stats as sp
+#import matplotlib as mp
+#import statsmodels.api as sm
+import pandas as pd
+#import seaborn as sb
+import os, sys, collections, csv, datetime
+#from pandas.plotting import scatter_matrix
+#import matplotlib.pyplot as plt
+#pdf reader libraries
+#pip install tabula-py
+import tabula
+
+os.chdir('dir')
+os.getcwd()
+
+
+#from tabula import read_pdf
+#df=read_pdf("DIA_AR_20191031.pdf",pages=4)
+#df=pd.DataFrame(df)
+###############################################
+# read pdf into list of DataFrame
+df_2015 = tabula.read_pdf("DIA_AR_20151031.pdf", stream=True, pages=3, area=(94,33,460,585))
+#area=(94,33,460,585) indicates cooredinates of top,left, bottom and right
+df_2015
+#convert PDF into CSV file
+tabula.convert_into("DIA_AR_20151031.pdf", "DIA_AR_20151031_py.csv", output_format="csv", pages=3,area=(94,33,460,585))
+
+#############################################
+
+df_2019 = tabula.read_pdf("DIA_AR_20191031.pdf", stream=True, pages=4, area=(130,33.5,512,585))
+df_2019
+tabula.convert_into("DIA_AR_20191031.pdf", "DIA_AR_20191031_py.csv", output_format="csv", pages=4,area=(130,33.5,512,585))
+
+for line in df_2019:Type = line.split("  ")   
+df=line.loc[:, ['Security Description', 'Shares', 'Value']]
+
+type(df)
+df.columns
+df.head
+df.dtypes
+df=df.dropna()
+df['Shares'] = df['Shares'].str.replace(r'\,', '')
+df['Shares']=pd.to_numeric(df['Shares'])
+
+df['Value'] = df['Value'].str.replace(r'\,', '')
+df['Value']=pd.to_numeric(df['Value'])
+
+
+df.astype({'Shares': 'int32','Value':'float64'}).dtypes
+df=df.convert_dtypes()
+df.dtypes
+df.plot.bar(x='Security Description', y='Value', rot=90)
+
+df.sort_values('Value', ascending=True).plot.barh(x='Security Description', y='Value', rot=0)
+
+
+
+
+
+
+
+
+
+
