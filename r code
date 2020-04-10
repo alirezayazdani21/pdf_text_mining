@@ -1,0 +1,169 @@
+
+
+library(tabulizer)
+library(pdftools)
+library(tm)
+library(glue)
+library(ggplot2)
+library(ggthemes)
+library(formattable)
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(xlsx)
+################################################
+options(scipen = 999)
+################################################
+setwd("dir")
+################################################
+#Location of pdf file
+DIA_AR_20191031 <- 'DIA_AR_20191031.pdf'
+################################################
+################################################
+# We first work on 2019 file
+#Let's extract and visualize Schedule of investments on page 4
+
+pdf_2019_p4 <- pdf_text(DIA_AR_20191031)[[4]] %>%  readr::read_lines(.) 
+pdf_2019_p4_table <- pdf_2019_p4[7:36] %>% 
+  str_replace_all(.,",","") %>%
+  str_replace_all(.,"\\$","") %>% 
+  str_split_fixed(.,"  ",2) %>% 
+  as.data.frame(.) %>% 
+  mutate(V2 = str_trim(V2,"both")) %>% 
+  as.data.frame(.) 
+
+split_v2 <- cbind.data.frame(str_split_fixed(pdf_2019_p4_table$V2,"  ",2)) 
+pdf_2019_Sched_Inv <- cbind.data.frame(pdf_2019_p4_table,split_v2) %>% select(-V2)
+colnames(pdf_2019_Sched_Inv) <- c("Stocks","Sahres","Value")
+pdf_2019_Sched_Inv$Sahres <- as.numeric(as.character(pdf_2019_Sched_Inv$Sahres))
+pdf_2019_Sched_Inv$Value <- as.numeric(as.character(pdf_2019_Sched_Inv$Value))
+pdf_2019_Sched_Inv$Value_pct<-100*pdf_2019_Sched_Inv$Value/sum(pdf_2019_Sched_Inv$Value)
+rm(pdf_2019_p4,pdf_2019_p4_table,split_v2)
+
+################################################
+#let's have a glimpse
+head(pdf_2019_Sched_Inv,5)
+
+ggplot(data=pdf_2019_Sched_Inv, aes(x=reorder(Stocks,Value), y=Value)) + 
+  geom_bar(stat="identity",fill="navy")+ 
+  xlab("Stocks") + ylab("$ Value")+
+  #scale_y_continuous(trans='log10') + 
+  coord_flip()
+
+ggplot(data=pdf_2019_Sched_Inv, aes(x=reorder(Stocks,Value_pct), y=Value_pct)) + 
+  geom_bar(stat="identity",col="blue",fill="grey")+ 
+  xlab("Stocks") +  ylab("Value (% of total)") + 
+  #scale_y_continuous(trans='log10') + 
+  coord_flip()
+
+###############################################
+###############################################
+###############################################
+#Let's extract and visualize Industry Breakdown on page 6
+
+pdf_2019_p6 <- pdf_text(DIA_AR_20191031)[[6]] %>%  readr::read_lines(.) 
+pdf_2019_p6_table <- pdf_2019_p6[8:32] %>% 
+  str_replace_all(.,",","") %>%
+  str_replace_all(.,"\\$","") %>% 
+  str_replace_all(.,"\\%","") %>%
+  str_split_fixed(.,"  ",2) %>% 
+  as.data.frame(.) %>% 
+  mutate(V2 = str_trim(V2,"both")) %>% 
+  as.data.frame(.) 
+
+pdf_2019_Ind_Break<-pdf_2019_p6_table
+colnames(pdf_2019_Ind_Break) <- c("Industry","Net_Asset_pct")
+pdf_2019_Ind_Break$Net_Asset_pct<-as.numeric(as.character(pdf_2019_Ind_Break$Net_Asset_pct))
+
+rm(pdf_2019_p6,pdf_2019_p6_table)
+
+################################################
+#let's have a look
+head(pdf_2019_Ind_Break,5)
+
+ggplot(data=pdf_2019_Ind_Break, aes(x=reorder(Industry,Net_Asset_pct), y=Net_Asset_pct)) + 
+  geom_bar(stat="identity",fill="red")+ 
+  xlab("Industry") + ylab("Net Asset %")+
+  #scale_y_continuous(trans='log10') + 
+  coord_flip()
+
+#pie chart for industres with over 5% Net Asset pct
+pdf_2019_Ind_Break_pie_data<-pdf_2019_Ind_Break %>% 
+  mutate(Industry=if_else(Net_Asset_pct > 5,paste(Industry),"Other")) %>% 
+  group_by(Industry) %>% 
+  summarise(Net_Asset_Tot=sum(Net_Asset_pct)) %>% arrange(desc(Net_Asset_Tot))
+
+# Pie Chart from data frame with Appended Sample Sizes
+slices <- pdf_2019_Ind_Break_pie_data$Net_Asset_Tot
+lbls <- pdf_2019_Ind_Break_pie_data$Industry
+#pct <- round(pdf_2019_Ind_Break_pie_data$Net_Asset_Tot/sum(pdf_2019_Ind_Break_pie_data$Net_Asset_Tot)*100)
+pct <- round(pdf_2019_Ind_Break_pie_data$Net_Asset_Tot,1)
+lbls <- paste(lbls, pct) # add percents to labels
+lbls <- paste(lbls,"%",sep="") # ad % to labels
+pie(slices,
+    labels = lbls,cex=0.7,
+    col=rainbow(length(lbls)),
+    main="Net Asset Industry Breakdown_2019")
+
+rm(pdf_2019_Ind_Break_pie_data,lbls,pct,slices)
+###############################################
+###############################################
+###############################################
+#Let's extract and visualize AL Balance Sheet on page 7
+pdf_2019_p7 <- pdf_text(DIA_AR_20191031)[[7]] %>%  readr::read_lines(.) 
+
+#Assets lines 5-8
+pdf_2019_p7_table <- pdf_2019_p7[6:9] %>% 
+  str_replace_all(.,",","") %>%
+  str_replace_all(.,"\\$","") %>% 
+  str_replace_all(.,"\\%","") %>%
+  as.data.frame(.) %>% 
+  apply(.,2,function(x){str_trim(x,"both")}) %>% 
+  str_split_fixed(.,"  ",2) %>% 
+  as.data.frame(.)
+
+pdf_2019_Assets<-pdf_2019_p7_table
+colnames(pdf_2019_Assets) <- c("Item","Value")
+pdf_2019_Assets$Value<-as.numeric(as.character(pdf_2019_Assets$Value))
+pdf_2019_Assets$Value_pct<- 100*pdf_2019_Assets$Value/ sum(pdf_2019_Assets$Value)
+rm(pdf_2019_p7_table)
+
+#Liabilities lines 11-15
+pdf_2019_p7_table_li <- pdf_2019_p7[12:16] %>% 
+  str_replace_all(.,",","") %>%
+  str_replace_all(.,"\\$","") %>% 
+  str_replace_all(.,"\\%","") %>%
+  as.data.frame(.) %>% 
+  apply(.,2,function(x){str_trim(x,"both")}) %>% 
+  str_split_fixed(.,"  ",2) %>% 
+  as.data.frame(.)
+
+pdf_2019_Liabilities<-pdf_2019_p7_table_li
+colnames(pdf_2019_Liabilities) <- c("Item","Value")
+pdf_2019_Liabilities$Value<-as.numeric(as.character(pdf_2019_Liabilities$Value))
+pdf_2019_Liabilities$Value_pct<- 100*pdf_2019_Liabilities$Value/ sum(pdf_2019_Liabilities$Value)
+rm(pdf_2019_p7_table_li)
+
+#Net Assets 5-8
+pdf_2019_p7_table_net_assets <- pdf_2019_p7[20:21] %>% 
+  str_replace_all(.,",","") %>%
+  str_replace_all(.,"\\$","") %>% 
+  str_replace_all(.,"\\%","") %>%
+  as.data.frame(.) %>% 
+  apply(.,2,function(x){str_trim(x,"both")}) %>% 
+  str_split_fixed(.,"  ",2) %>% 
+  as.data.frame(.)
+
+pdf_2019_NetAssets<-pdf_2019_p7_table_net_assets
+colnames(pdf_2019_NetAssets) <- c("Item","Value")
+pdf_2019_NetAssets$Value<-
+  pdf_2019_NetAssets$Value<-as.numeric(accounting(as.character(pdf_2019_NetAssets$Value)))
+pdf_2019_NetAssets$Value_pct<- 100*pdf_2019_NetAssets$Value/ sum(pdf_2019_NetAssets$Value)
+rm(pdf_2019_p7_table_net_assets,pdf_2019_p7)
+
+#Finally let's write all into excel
+write.xlsx(pdf_2019_Sched_Inv, sheetName="sched_inv", file="DIA_AR_20191031.xlsx", row.names=FALSE)
+write.xlsx(pdf_2019_Ind_Break, sheetName="ind_break", file="DIA_AR_20191031.xlsx", row.names=FALSE, append=TRUE)
+write.xlsx(pdf_2019_Assets, sheetName="bs_assets", file="DIA_AR_20191031.xlsx", row.names=FALSE, append=TRUE)
+write.xlsx(pdf_2019_Liabilities, sheetName="bs_liabilities", file="DIA_AR_20191031.xlsx", row.names=FALSE, append=TRUE)
+write.xlsx(pdf_2019_NetAssets, sheetName="bs_net_assets", file="DIA_AR_20191031.xlsx", row.names=FALSE, append=TRUE)
